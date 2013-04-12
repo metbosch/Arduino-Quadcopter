@@ -38,7 +38,12 @@ Planned features are:
 More features will be added as I expand the usage of my quadcopter.
 
 
+In order to use this sketch, you will need to install the libraries from [arducopter/libraries](https://github.com/strangedev/arducopter/tree/master/libraries)
+on your computer.
 
+I want to thank [Jeff Rowberg](https://github.com/jrowberg), who created the great library [i2cdevlib](https://github.com/jrowberg/i2cdevlib) for using all
+kinds of I2C devices including the MPU-6050 with the arduino board.
+Without his contributions to the open source community I couldn't have done this project.
 
 
 Modifying the sketch
