@@ -24,14 +24,13 @@ Complete features are:
 
 - Arming of ESCs with given min/max values
 - Control over pitch, roll and yaw through motor speed balances
-- Control over pitch through RC
+- Control over pitch, roll and yaw through RC
 - Controll over vertical speed through RC
 - Calculation of current pitch, roll and yaw via the DMP unit on the MPU-6050
 
 Planned features are:
 
-- Automatic stabilisation of flight via MPU-6050
-- Control of roll and yaw through RC
+- Automatic stabilisation of flight via MPU-6050 (complete but not fine tuned)
 - Assisted safe landing through free fall detection
 
 
