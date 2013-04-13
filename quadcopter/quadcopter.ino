@@ -1,10 +1,14 @@
 #include <Servo.h>
 #include <Wire.h>
 #include <I2Cdev.h>
+#include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
+#include <PID_v1.h>
 
 #define DEBUG
 
+
+// Arduino pin setup
 #define ESC_A 9
 #define ESC_B 6
 #define ESC_C 5
@@ -16,6 +20,19 @@
 #define RC_4 10
 #define RC_5 8
 #define RC_PWR A0
+
+// PID configuration
+#define pKp 0.1
+#define pKi 0.03
+#define pKd 0.1
+
+#define rKp 0.1
+#define rKi 0.05
+#define rKd 0.25
+
+#define yKp 0.1
+#define yKi 0.05
+#define yKd 0.25
 
 /*
   Arducopter v1.0
@@ -44,7 +61,7 @@ uint8_t fifoBuffer[64]; //fifo buffer
 
 Quaternion q; //quaternion for mpu output
 VectorFloat gravity; //gravity vector for ypr
-float ypr[3]; // yaw pitch roll values
+float ypr[3] = {0.0f,0.0f,0.0f}; // yaw pitch roll values
 
 volatile bool mpuInterrupt = false; //interrupt flag
 
@@ -61,6 +78,12 @@ float bal_axes; // throttle balance between axes -100:ac , +100:bd
 int velocity; //global velocity
 
 Servo a,b,c,d;
+
+float pitch, roll, yaw;
+
+PID* pitchReg = new PID(&ypr[1], &bal_bd, &pitch, pKp, pKi, pKd, REVERSE);
+PID* rollReg = new PID(&ypr[2], &bal_ac, &roll, rKp, rKi, rKd, REVERSE);
+PID* yawReg = new PID(&ypr[0], &bal_axes, &yaw, yKp, yKi, yKd, DIRECT);
 
 void setup(){
   
@@ -79,7 +102,12 @@ void setup(){
 }
 
 void loop(){
-
+  
+  while(!mpuInterrupt && fifoCount < packetSize){
+     //Do nothing
+     //This should be a VERY short period
+  }
+  
   getYPR();
   getInput();
   calculateVelocities();
@@ -87,17 +115,41 @@ void loop(){
   
 }
 
-void getYPR(){
+void initRegulators(){
 
-  if(mpuInterrupt && fifoCount >= packetSize){
+  pitchReg->SetOutputLimits(-50, 50);
+  pitchReg->SetMode(AUTOMATIC);
+  rollReg->SetOutputLimits(-50, 50);
+  rollReg->SetMode(AUTOMATIC);
+  yawReg->SetOutputLimits(-20, 20);
+  yawReg->SetMode(AUTOMATIC);
+
+}
+
+void computePID(){
+
+  pitch = map(ch2, 100, 200, -45, 45);
+  roll = map(ch1, 100, 200, -45, 45);
+  yaw = map(ch4, 100, 200, -180, 180);
+  
+  pitchReg->Compute();
+  rollReg->Compute();
+  yawReg->Compute();
+
+}
+
+void getYPR(){
   
     mpuInterrupt = false;
     mpuIntStatus = mpu.getIntStatus();
     fifoCount = mpu.getFIFOCount();
     
-    if((mpuIntStatus & 0x10) || fifoCount == 1024) mpu.resetFIFO(); // overflow
+    if((mpuIntStatus & 0x10) || fifoCount == 1024){ 
+      
+      Serial.println("FIFO overflow!");
+      mpu.resetFIFO(); 
     
-    else if(mpuIntStatus & 0x02){
+    }else if(mpuIntStatus & 0x02){
     
       while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
   
@@ -110,19 +162,12 @@ void getYPR(){
       mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     
     }
-    
-    
-  
-  }
 
 }
 
 void calculateVelocities(){
 
   velocity = map(ch3, 100, 200, 115, 22);
-  bal_bd = floor(map(ch2, 100, 200, 100, -100)/10); //round to floor base 10
-  
-  Serial.println(ch3);
   
   v_ac = (abs(-100+bal_axes)/100)*velocity;
   v_bd = ((100+bal_axes)/100)*velocity;
@@ -133,13 +178,19 @@ void calculateVelocities(){
   vc = (abs((-100+bal_ac)/100))*v_ac;
   vd = (abs((-100+bal_bd)/100))*v_bd;
   
+  if(velocity < 30){
+  
+    va = 22;
+    vb = 22;
+    vc = 22;
+    vd = 22;
+  
+  }
+  
   #ifdef DEBUG
-  /*
+  
   Serial.print("A: "+String(va)+" B: "+String(vb)+" C: "+String(vc)+" D: "+String(vd));
   Serial.println("");
-  Serial.print("VAC: "+String(v_ac)+" VBD: "+String(v_bd));
-  Serial.println("");
-  */
   #endif
   
 
@@ -202,7 +253,7 @@ void initRC(){
 }
 
 void initMPU(){
-
+  
   Wire.begin();
   mpu.initialize();
   devStatus = mpu.dmpInitialize();
