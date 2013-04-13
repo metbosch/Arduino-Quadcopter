@@ -46,7 +46,9 @@ PID::PID(float* Input, float* Output, float* Setpoint,
  **********************************************************************************/ 
 bool PID::Compute()
 {
+
    if(!inAuto) return false;
+
    unsigned long now = millis();
    unsigned long timeChange = (now - lastTime);
    if(timeChange>=SampleTime)
