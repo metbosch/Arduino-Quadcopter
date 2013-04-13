@@ -10,7 +10,10 @@
 #define DEBUG
 
 
-// Arduino pin setup
+/*  Arduino Pin configuration
+ *  
+ */
+
 #define ESC_A 9
 #define ESC_B 6
 #define ESC_C 5
@@ -23,56 +26,81 @@
 #define RC_5 8
 #define RC_PWR A0
 
-// PID configuration
-#define pKp 2
-#define pKi 5
-#define pKd 1
 
-#define rKp 0.1
-#define rKi 0.05
-#define rKd 0.25
+/* ESC configuration
+ *
+ */
 
-#define yKp 0.1
-#define yKi 0.05
-#define yKd 0.25
+#define ESC_MIN 22
+#define ESC_MAX 115
+#define ESC_TAKEOFF_OFFSET 30
+#define ESC_ARM_DELAY 5000
 
-/*
-  Arducopter v1.0
-  
-  RC Channels: 
-    
-    Throttle - CH3
-    Pitch    - CH2
-    Roll     - CH1
-    Yaw      - CH4
-    Aux      - CH5
+/* RC configuration
+ * 
+ */
+
+#define RC_HIGH 1000
+#define RC_LOW 2000
+
+/*  PID configuration
+ *  
+ */
+
+#define PITCH_P_VAL 2
+#define PITCH_I_VAL 5
+#define PITCH_D_VAL 1
+
+#define ROLL_P_VAL 2
+#define ROLL_I_VAL 5
+#define ROLL_D_VAL 1
+
+#define YAW_P_VAL 2
+#define YAW_I_VAL 5
+#define YAW_D_VAL 1
 
 
-*/
+/* Flight parameters
+ *
+ */
 
-// MPU SETUP //
+#define PITCH_MIN -45
+#define PITCH_MAX 45
+#define ROLL_MIN -45
+#define ROLL_MAX 45
+#define YAW_MIN -180
+#define YAW_MAX 180
+#define PID_PITCH_INFLUENCE 15
+#define PID_ROLL_INFLUENCE 15
+#define PID_YAW_INFLUENCE 15
 
-MPU6050 mpu; // mpu interface object
 
-bool dmpReady = false; //flag
-uint8_t mpuIntStatus;  //mpu statusbyte
-uint8_t devStatus; //device status byte    
-uint16_t packetSize; //estimated packet size  
-uint16_t fifoCount; //fifo buffer size   
-uint8_t fifoBuffer[64]; //fifo buffer 
+/*  MPU variables
+ *
+ */
 
-Quaternion q; //quaternion for mpu output
-VectorFloat gravity; //gravity vector for ypr
-float ypr[3] = {0.0f,0.0f,0.0f}; // yaw pitch roll values
+MPU6050 mpu;                           // mpu interface object
 
-volatile bool mpuInterrupt = false; //interrupt flag
 
-// RC/CONTROL SETUP
+uint8_t mpuIntStatus;                  // mpu statusbyte
+uint8_t devStatus;                     // device status    
+uint16_t packetSize;                   // estimated packet size  
+uint16_t fifoCount;                    // fifo buffer size   
+uint8_t fifoBuffer[64];                // fifo buffer 
 
-float ch1, ch2, ch3, ch4, ch5; //RC channel inputs
-float ch3_smooth = 1000;
-int va, vb, vc, vd; //velocities
-int v_ac, v_bd; // velocity of axes
+Quaternion q;                          // quaternion for mpu output
+VectorFloat gravity;                   // gravity vector for ypr
+float ypr[3] = {0.0f,0.0f,0.0f};       // yaw pitch roll values
+
+volatile bool mpuInterrupt = false;    //interrupt flag
+
+
+/*  RC variables
+ *
+ */
+
+float ch1, ch2, ch3, ch4, ch5;         // RC channel inputs
+float ch3_smooth = 1000;               // may be unnecessary with new input method
 
 unsigned long rcLastChange1 = millis();
 unsigned long rcLastChange2 = millis();
@@ -80,71 +108,82 @@ unsigned long rcLastChange3 = millis();
 unsigned long rcLastChange4 = millis();
 unsigned long rcLastChange5 = millis();
 
-// MOTOR SETUP
+/*  Motor controll variables
+ *
+ */
 
-int velocity; //global velocity
+int velocity;                         // global velocity
 
-float bal_ac, bal_bd; // motor balances can vary between -100 & 100
-float bal_axes; // throttle balance between axes -100:ac , +100:bd
+float bal_ac, bal_bd;                 // motor balances can vary between -100 & 100
+float bal_axes;                       // throttle balance between axes -100:ac , +100:bd
+
+int va, vb, vc, vd;                   //velocities
+int v_ac, v_bd;                       // velocity of axes
 
 Servo a,b,c,d;
 
-// PID SETUP
+/*  PID variables
+ *
+ */
 
-PID pitchReg(&ypr[1], &bal_bd, &ch2, pKp, pKi, pKd, REVERSE);
-PID rollReg(&ypr[2], &bal_ac, &ch1, rKp, rKi, rKd, REVERSE);
-PID yawReg(&ypr[0], &bal_axes, &ch4, yKp, yKi, yKd, DIRECT);
+PID pitchReg(&ypr[1], &bal_bd, &ch2, PITCH_P_VAL, PITCH_I_VAL, PITCH_D_VAL, REVERSE);
+PID rollReg(&ypr[2], &bal_ac, &ch1, ROLL_P_VAL, ROLL_I_VAL, ROLL_D_VAL, REVERSE);
+PID yawReg(&ypr[0], &bal_axes, &ch4, YAW_P_VAL, YAW_I_VAL, YAW_D_VAL, DIRECT);
 
+
+/*  Setup function
+ *
+ */
 
 void setup(){
   
-  initRC();
+  initRC();                            // Self explaining
   initMPU();
   initESCs();
   initBalancing();
   initRegulators();
   
-  #ifdef DEBUG
+  #ifdef DEBUG                        // Device tests go here
   
-  Serial.begin(9600);
+  Serial.begin(9600);                 // Serial only necessary if in DEBUG mode
   Serial.flush();
   Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   
   #endif
 }
 
+/* loop function
+ *
+ */
+
 void loop(){
   
   while(!mpuInterrupt && fifoCount < packetSize){
-     //Do nothing
-     //This should be a VERY short period
+     
+    /* Do nothing while MPU is not working
+     * This should be a VERY short period
+     */
+      
   }
   
-  getYPR();
+  getYPR();                          
   computePID();
   calculateVelocities();
   updateMotors();
   
 }
 
-void initRegulators(){
-
-  pitchReg.SetMode(AUTOMATIC);
-  pitchReg.SetOutputLimits(-15, 15);
-  
-  rollReg.SetMode(AUTOMATIC);
-  rollReg.SetOutputLimits(-20, 20);
-  
-  yawReg.SetMode(AUTOMATIC);
-  yawReg.SetOutputLimits(-20, 20);
-
-}
+/*  computePID function
+ *
+ *  formats data for use with PIDLib
+ *  and computes PID output
+ */
 
 void computePID(){
 
-  ch2 = map(ch2, 100, 200, -45, 45);
-  ch1 = map(ch1, 100, 200, -45, 45);
-  ch4 = map(ch4, 100, 200, -180, 180);
+  ch2 = map(ch2, RC_LOW, RC_HIGH, PITCH_MIN, PITCH_MAX);
+  ch1 = map(ch1, RC_LOW, RC_HIGH, ROLL_MIN, ROLL_MAX);
+  ch4 = map(ch4, RC_LOW, RC_HIGH, YAW_MIN, YAW_MAX);
   
   ypr[0] = ypr[0] * 180/M_PI;
   ypr[1] = ypr[1] * 180/M_PI;
@@ -155,6 +194,12 @@ void computePID(){
   yawReg.Compute();
 
 }
+
+/*  getYPR function
+ *
+ *  gets data from MPU and
+ *  computes pitch, roll, yaw on the MPU's DMP
+ */
 
 void getYPR(){
   
@@ -183,9 +228,15 @@ void getYPR(){
 
 }
 
+/*  calculateVelocities function
+ *  
+ *  calculates the velocities of every motor
+ *  using the PID output
+ */
+
 void calculateVelocities(){
 
-  velocity = map(ch3, 100, 200, 115, 22);
+  velocity = map(ch3, RC_LOW, RC_HIGH, ESC_MIN, ESC_MAX);
   
   v_ac = (abs(-100+bal_axes)/100)*velocity;
   v_bd = ((100+bal_axes)/100)*velocity;
@@ -196,26 +247,25 @@ void calculateVelocities(){
   vc = (abs((-100+bal_ac)/100))*v_ac;
   vd = (abs((-100+bal_bd)/100))*v_bd;
   
-  if(velocity < 30){
+  if(velocity < ESC_TAKEOFF_OFFSET){
   
-    va = 22;
-    vb = 22;
-    vc = 22;
-    vd = 22;
+    va = ESC_MIN;
+    vb = ESC_MIN;
+    vc = ESC_MIN;
+    vd = ESC_MIN;
   
   }
   
   #ifdef DEBUG
   
   //Serial.print("A: "+String(va)+" B: "+String(vb)+" C: "+String(vc)+" D: "+String(vd));
-  Serial.print("AC: ");
+  /*Serial.print("AC: ");
   Serial.print(bal_ac);
   Serial.print(" BD: ");
   Serial.print(bal_bd);
-  Serial.println("");
+  Serial.println("");*/
   #endif
   
-
 }
 
 void updateMotors(){
@@ -229,12 +279,12 @@ void updateMotors(){
 
 void arm(){
 
-  a.write(22);
-  b.write(22);
-  c.write(22);
-  d.write(22);
+  a.write(ESC_MIN);
+  b.write(ESC_MIN);
+  c.write(ESC_MIN);
+  d.write(ESC_MIN);
   
-  delay(5000);
+  delay(ESC_ARM_DELAY);
 
 }
 
@@ -280,7 +330,6 @@ void initMPU(){
     mpu.setDMPEnabled(true);
     attachInterrupt(0, dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
-    dmpReady = true;
     packetSize = mpu.dmpGetFIFOPacketSize();
     
   }
@@ -304,6 +353,19 @@ void initBalancing(){
   bal_axes = 0;
   bal_ac = 0;
   bal_bd = 0;
+
+}
+
+void initRegulators(){
+
+  pitchReg.SetMode(AUTOMATIC);
+  pitchReg.SetOutputLimits(-PID_PITCH_INFLUENCE, PID_PITCH_INFLUENCE);
+  
+  rollReg.SetMode(AUTOMATIC);
+  rollReg.SetOutputLimits(-PID_ROLL_INFLUENCE, PID_ROLL_INFLUENCE);
+  
+  yawReg.SetMode(AUTOMATIC);
+  yawReg.SetOutputLimits(-PID_YAW_INFLUENCE, PID_YAW_INFLUENCE);
 
 }
 
