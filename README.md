@@ -43,7 +43,8 @@ on your computer.
 
 I want to thank [Jeff Rowberg](https://github.com/jrowberg), who created the great library [i2cdevlib](https://github.com/jrowberg/i2cdevlib) for using all
 kinds of I2C devices including the MPU-6050 with the arduino board.
-Without his contributions to the open source community I couldn't have done this project.
+I also want to thank [br3ttb](https://github.com/br3ttb), who created the [Arduino-PID-Libary](https://github.com/br3ttb/Arduino-PID-Library/) which helped me save a lot of time.
+Without their contributions to the open source community I couldn't have done this project.
 
 
 Modifying the sketch
@@ -64,6 +65,3 @@ Note:
 The MPU-6050 board currently is the only supported gyro/accelerometer hardware and can only be connected in one specific 
 way, due to the requirements of I2C and the fixed position of the Arduino's external interrupt pin.
 
-
-If you have any questions, feel free to contact me, however I cannot guarantee that this sketch will work for 
-everyone.
