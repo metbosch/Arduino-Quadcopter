@@ -40,16 +40,24 @@
  * 
  */
 
-#define RC_HIGH 1000
-#define RC_LOW 2000
+#define RC_HIGH_CH1 1000
+#define RC_LOW_CH1 2000
+#define RC_HIGH_CH2 1000
+#define RC_LOW_CH2 2000
+#define RC_HIGH_CH3 1000
+#define RC_LOW_CH3 2000
+#define RC_HIGH_CH4 1000
+#define RC_LOW_CH4 2000
+#define RC_HIGH_CH5 1000
+#define RC_LOW_CH5 2000
 
 /*  PID configuration
  *  
  */
 
-#define PITCH_P_VAL 2
-#define PITCH_I_VAL 5
-#define PITCH_D_VAL 1
+#define PITCH_P_VAL 2.0
+#define PITCH_I_VAL 0.03
+#define PITCH_D_VAL 13.0
 
 #define ROLL_P_VAL 2
 #define ROLL_I_VAL 5
@@ -70,9 +78,9 @@
 #define ROLL_MAX 30
 #define YAW_MIN -180
 #define YAW_MAX 180
-#define PID_PITCH_INFLUENCE 15
-#define PID_ROLL_INFLUENCE 15
-#define PID_YAW_INFLUENCE 15
+#define PID_PITCH_INFLUENCE 20
+#define PID_ROLL_INFLUENCE 20
+#define PID_YAW_INFLUENCE 20
 
 
 /*  MPU variables
@@ -100,7 +108,6 @@ volatile bool mpuInterrupt = false;    //interrupt flag
  */
 
 float ch1, ch2, ch3, ch4, ch5;         // RC channel inputs
-float ch3_smooth = 1000;               // may be unnecessary with new input method
 
 unsigned long rcLastChange1 = micros();
 unsigned long rcLastChange2 = micros();
@@ -130,6 +137,12 @@ PID pitchReg(&ypr[1], &bal_bd, &ch2, PITCH_P_VAL, PITCH_I_VAL, PITCH_D_VAL, REVE
 PID rollReg(&ypr[2], &bal_ac, &ch1, ROLL_P_VAL, ROLL_I_VAL, ROLL_D_VAL, REVERSE);
 PID yawReg(&ypr[0], &bal_axes, &ch4, YAW_P_VAL, YAW_I_VAL, YAW_D_VAL, DIRECT);
 
+
+/*  Filter variables
+ *
+ */
+ 
+float ch1Last, ch2Last, ch4Last, velocityLast;
 
 /*  Setup function
  *
@@ -180,10 +193,22 @@ void loop(){
  */
 
 void computePID(){
+  
+  smoothInput();
 
-  ch2 = map(ch2, RC_LOW, RC_HIGH, PITCH_MIN, PITCH_MAX);
-  ch1 = map(ch1, RC_LOW, RC_HIGH, ROLL_MIN, ROLL_MAX);
-  ch4 = map(ch4, RC_LOW, RC_HIGH, YAW_MIN, YAW_MAX);
+  ch2 = map(ch2, RC_LOW_CH2, RC_HIGH_CH2, PITCH_MIN, PITCH_MAX);
+  ch1 = map(ch1, RC_LOW_CH1, RC_HIGH_CH1, ROLL_MIN, ROLL_MAX);
+  ch4 = map(ch4, RC_LOW_CH4, RC_HIGH_CH4, YAW_MIN, YAW_MAX);
+  
+  if((ch2 < PITCH_MIN) || (ch2 > PITCH_MAX)) ch2 = ch2Last;
+  if((ch1 < ROLL_MIN) || (ch1 > ROLL_MAX)) ch1 = ch1Last;
+  if((ch4 < YAW_MIN) || (ch4 > YAW_MAX)) ch4 = ch4Last;
+  
+  ch1Last = ch1;
+  ch2Last = ch2;
+  ch4Last = ch4;
+  
+  Serial.println(ch2);
   
   ypr[0] = ypr[0] * 180/M_PI;
   ypr[1] = ypr[1] * 180/M_PI;
@@ -228,6 +253,21 @@ void getYPR(){
 
 }
 
+/*  smoothInput function
+ *
+ *  filters the rc input
+ */
+
+void smoothInput(){
+
+  ch1 = floor(ch1/100)*100;
+  ch2 = floor(ch2/100)*100;
+  ch3 = floor(ch3/100)*100;
+  ch4 = floor(ch4/100)*100;
+  ch5 = floor(ch5/100)*100;
+
+}
+
 /*  calculateVelocities function
  *  
  *  calculates the velocities of every motor
@@ -236,7 +276,11 @@ void getYPR(){
 
 void calculateVelocities(){
 
-  velocity = map(ch3, RC_LOW, RC_HIGH, ESC_MIN, ESC_MAX);
+  velocity = map(ch3, RC_LOW_CH3, RC_HIGH_CH3, ESC_MIN, ESC_MAX);
+  
+  if((velocity < ESC_MIN) || (velocity > ESC_MAX)) velocity = velocityLast;
+  
+  velocityLast = velocity;
   
   v_ac = (abs(-100+bal_axes)/100)*velocity;
   v_bd = ((100+bal_axes)/100)*velocity;
@@ -257,6 +301,7 @@ void calculateVelocities(){
   }
   
   #ifdef DEBUG
+  //Serial.println(ch2);
   //Serial.print("A: "+String(va)+" B: "+String(vb)+" C: "+String(vc)+" D: "+String(vd));
   /*Serial.print("AC: ");
   Serial.print(bal_ac);
@@ -285,21 +330,6 @@ void arm(){
   
   delay(ESC_ARM_DELAY);
 
-}
-
-int smooth(int data, float filterVal, float smoothedVal){
-
-
-  if (filterVal > 1){    
-    filterVal = .99;
-  }
-  else if (filterVal <= 0){
-    filterVal = 0;
-  }
-
-  smoothedVal = (data * (1 - filterVal)) + (smoothedVal  *  filterVal);
-
-  return (int)smoothedVal;
 }
 
 void dmpDataReady() {

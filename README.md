@@ -52,8 +52,8 @@ Without their contributions to the open source community I couldn't have done th
 Modifying the sketch
 ====================
 
-As I mentioned earlier, the sletch relies on certain hardware, but should work with all similar hardware aswell.
-Fundemtal paramters of the used hardware, like the pin it's connected to, or minimum/maximum values of the ESCs are #define 'd
+As I mentioned earlier, the sketch relies on certain hardware, but should work with all similar hardware aswell.
+Fundemtal paramters of the used hardware, like the pin it's connected to, or minimum/maximum values of the ESCs are ``#define``'d
 at the top of the sketch and can easily be changed to whatever value you prefer.
 
 You might also want to change how the motor speed is affected by the signal coming in from the RC, for exmaple if your
