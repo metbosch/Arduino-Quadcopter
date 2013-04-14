@@ -1,11 +1,11 @@
-#include <PinChangeInt.h>
-#include <PinChangeIntConfig.h>
 #include <Servo.h>
 #include <Wire.h>
 #include <I2Cdev.h>
 #include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
 #include <PID_v1.h>
+#include <PinChangeInt.h>
+#include <PinChangeIntConfig.h>
 
 #define DEBUG
 
@@ -64,10 +64,10 @@
  *
  */
 
-#define PITCH_MIN -45
-#define PITCH_MAX 45
-#define ROLL_MIN -45
-#define ROLL_MAX 45
+#define PITCH_MIN -30
+#define PITCH_MAX 30
+#define ROLL_MIN -30
+#define ROLL_MAX 30
 #define YAW_MIN -180
 #define YAW_MAX 180
 #define PID_PITCH_INFLUENCE 15
@@ -102,11 +102,11 @@ volatile bool mpuInterrupt = false;    //interrupt flag
 float ch1, ch2, ch3, ch4, ch5;         // RC channel inputs
 float ch3_smooth = 1000;               // may be unnecessary with new input method
 
-unsigned long rcLastChange1 = millis();
-unsigned long rcLastChange2 = millis();
-unsigned long rcLastChange3 = millis();
-unsigned long rcLastChange4 = millis();
-unsigned long rcLastChange5 = millis();
+unsigned long rcLastChange1 = micros();
+unsigned long rcLastChange2 = micros();
+unsigned long rcLastChange3 = micros();
+unsigned long rcLastChange4 = micros();
+unsigned long rcLastChange5 = micros();
 
 /*  Motor controll variables
  *
@@ -257,7 +257,6 @@ void calculateVelocities(){
   }
   
   #ifdef DEBUG
-  
   //Serial.print("A: "+String(va)+" B: "+String(vb)+" C: "+String(vc)+" D: "+String(vd));
   /*Serial.print("AC: ");
   Serial.print(bal_ac);
@@ -370,27 +369,27 @@ void initRegulators(){
 }
 
 void rcInterrupt1(){
-   ch1 = millis() - rcLastChange1;
-   rcLastChange1 = millis(); 
+   ch1 = micros() - rcLastChange1;
+   rcLastChange1 = micros(); 
 }
 
 void rcInterrupt2(){
-  ch2 = millis() - rcLastChange2;
-  rcLastChange2 = millis();
+  ch2 = micros() - rcLastChange2;
+  rcLastChange2 = micros();
 }
 
 void rcInterrupt3(){
-  ch3 = millis() - rcLastChange3;
-  rcLastChange3 = millis();
+  ch3 = micros() - rcLastChange3;
+  rcLastChange3 = micros();
 }
 
 void rcInterrupt4(){
-  ch4 = millis() - rcLastChange4;
-  rcLastChange4 = millis();
+  ch4 = micros() - rcLastChange4;
+  rcLastChange4 = micros();
 }
 
 void rcInterrupt5(){
-  ch5 = millis() - rcLastChange5;
-  rcLastChange5 = millis();
+  ch5 = micros() - rcLastChange5;
+  rcLastChange5 = micros();
 }
 
