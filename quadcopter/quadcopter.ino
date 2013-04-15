@@ -1,3 +1,6 @@
+#ifndef QUADARDU
+#define QUADARDU
+
 #include <Servo.h>
 #include <Wire.h>
 #include <I2Cdev.h>
@@ -161,7 +164,6 @@ void setup(){
   
   Serial.begin(9600);                 // Serial only necessary if in DEBUG mode
   Serial.flush();
-  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
   
   #endif
 }
@@ -212,20 +214,10 @@ void computePID(){
   ypr[0] = ypr[0] * 180/M_PI;
   ypr[1] = ypr[1] * 180/M_PI;
   ypr[2] = ypr[2] * 180/M_PI;
-  
-  Serial.print("CH2:\t");
-  Serial.print(ch2);
-  Serial.print("\tPITCH:\t");
-  Serial.print(ypr[1]);
-  
-  bool test = pitchReg.Compute();
+ 
+  pitchReg.Compute();
   rollReg.Compute();
   yawReg.Compute();
-  
-  Serial.print("\tBAL_BD:\t");
-  Serial.print(bal_bd);
-  Serial.print("\tNEW PID?\t");
-  Serial.println(test);
 
 }
 
@@ -243,7 +235,6 @@ void getYPR(){
     
     if((mpuIntStatus & 0x10) || fifoCount == 1024){ 
       
-      Serial.println("FIFO overflow!");
       mpu.resetFIFO(); 
     
     }else if(mpuIntStatus & 0x02){
@@ -308,16 +299,6 @@ void calculateVelocities(){
     vd = ESC_MIN;
   
   }
-  
-  #ifdef DEBUG
-  //Serial.println(ch2);
-  //Serial.print("A: "+String(va)+" B: "+String(vb)+" C: "+String(vc)+" D: "+String(vd));
-  /*Serial.print("AC: ");
-  Serial.print(bal_ac);
-  Serial.print(" BD: ");
-  Serial.print(bal_bd);
-  Serial.println("");*/
-  #endif
   
 }
 
@@ -431,4 +412,7 @@ void rcInterrupt5(){
   ch5 = micros() - rcLastChange5;
   rcLastChange5 = micros();
 }
+
+#endif
+
 
