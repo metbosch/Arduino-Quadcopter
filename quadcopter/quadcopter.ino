@@ -50,14 +50,15 @@
 #define RC_LOW_CH4 2000
 #define RC_HIGH_CH5 1000
 #define RC_LOW_CH5 2000
+#define RC_ROUNDING_BASE 50
 
 /*  PID configuration
  *  
  */
 
-#define PITCH_P_VAL 2.0
-#define PITCH_I_VAL 0.03
-#define PITCH_D_VAL 13.0
+#define PITCH_P_VAL 2
+#define PITCH_I_VAL 5
+#define PITCH_D_VAL 1
 
 #define ROLL_P_VAL 2
 #define ROLL_I_VAL 5
@@ -78,8 +79,8 @@
 #define ROLL_MAX 30
 #define YAW_MIN -180
 #define YAW_MAX 180
-#define PID_PITCH_INFLUENCE 20
-#define PID_ROLL_INFLUENCE 20
+#define PID_PITCH_INFLUENCE 50
+#define PID_ROLL_INFLUENCE 50
 #define PID_YAW_INFLUENCE 20
 
 
@@ -119,13 +120,13 @@ unsigned long rcLastChange5 = micros();
  *
  */
 
-int velocity;                         // global velocity
+int velocity;                          // global velocity
 
 float bal_ac, bal_bd;                 // motor balances can vary between -100 & 100
 float bal_axes;                       // throttle balance between axes -100:ac , +100:bd
 
-int va, vb, vc, vd;                   //velocities
-int v_ac, v_bd;                       // velocity of axes
+int va, vb, vc, vd;                    //velocities
+int v_ac, v_bd;                        // velocity of axes
 
 Servo a,b,c,d;
 
@@ -193,9 +194,9 @@ void loop(){
  */
 
 void computePID(){
-  
-  smoothInput();
 
+  roundInput();
+  
   ch2 = map(ch2, RC_LOW_CH2, RC_HIGH_CH2, PITCH_MIN, PITCH_MAX);
   ch1 = map(ch1, RC_LOW_CH1, RC_HIGH_CH1, ROLL_MIN, ROLL_MAX);
   ch4 = map(ch4, RC_LOW_CH4, RC_HIGH_CH4, YAW_MIN, YAW_MAX);
@@ -208,15 +209,23 @@ void computePID(){
   ch2Last = ch2;
   ch4Last = ch4;
   
-  Serial.println(ch2);
-  
   ypr[0] = ypr[0] * 180/M_PI;
   ypr[1] = ypr[1] * 180/M_PI;
   ypr[2] = ypr[2] * 180/M_PI;
   
-  pitchReg.Compute();
+  Serial.print("CH2:\t");
+  Serial.print(ch2);
+  Serial.print("\tPITCH:\t");
+  Serial.print(ypr[1]);
+  
+  bool test = pitchReg.Compute();
   rollReg.Compute();
   yawReg.Compute();
+  
+  Serial.print("\tBAL_BD:\t");
+  Serial.print(bal_bd);
+  Serial.print("\tNEW PID?\t");
+  Serial.println(test);
 
 }
 
@@ -258,14 +267,14 @@ void getYPR(){
  *  filters the rc input
  */
 
-void smoothInput(){
+void roundInput(){
 
-  ch1 = floor(ch1/100)*100;
-  ch2 = floor(ch2/100)*100;
-  ch3 = floor(ch3/100)*100;
-  ch4 = floor(ch4/100)*100;
-  ch5 = floor(ch5/100)*100;
-
+  ch1 = floor(ch1/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch2 = floor(ch2/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch3 = floor(ch3/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch4 = floor(ch4/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch5 = floor(ch5/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  
 }
 
 /*  calculateVelocities function
