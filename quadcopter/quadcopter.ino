@@ -204,8 +204,11 @@ void loop(){
 void computePID(){
 
   acquireLock();
-  roundInput();
   
+  ch1 = floor(ch1/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch2 = floor(ch2/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+  ch4 = floor(ch4/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
+
   ch2 = map(ch2, RC_LOW_CH2, RC_HIGH_CH2, PITCH_MIN, PITCH_MAX);
   ch1 = map(ch1, RC_LOW_CH1, RC_HIGH_CH1, ROLL_MIN, ROLL_MAX);
   ch4 = map(ch4, RC_LOW_CH4, RC_HIGH_CH4, YAW_MIN, YAW_MAX);
@@ -270,21 +273,6 @@ void getYPR(){
 
 }
 
-/*  smoothInput function
- *
- *  filters the rc input
- */
-
-void roundInput(){
-
-  ch1 = floor(ch1/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
-  ch2 = floor(ch2/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
-  ch3 = floor(ch3/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
-  ch4 = floor(ch4/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
-  ch5 = floor(ch5/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
-  
-}
-
 /*  calculateVelocities function
  *  
  *  calculates the velocities of every motor
@@ -293,8 +281,13 @@ void roundInput(){
 
 void calculateVelocities(){
 
+  acquireLock();
+
+  ch3 = floor(ch3/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
   velocity = map(ch3, RC_LOW_CH3, RC_HIGH_CH3, ESC_MIN, ESC_MAX);
   
+  releaseLock();
+
   if((velocity < ESC_MIN) || (velocity > ESC_MAX)) velocity = velocityLast;
   
   velocityLast = velocity;
