@@ -59,8 +59,8 @@
  *  
  */
 
-#define PITCH_P_VAL 2
-#define PITCH_I_VAL 5
+#define PITCH_P_VAL 0.5
+#define PITCH_I_VAL 0
 #define PITCH_D_VAL 1
 
 #define ROLL_P_VAL 2
@@ -82,8 +82,8 @@
 #define ROLL_MAX 30
 #define YAW_MIN -180
 #define YAW_MAX 180
-#define PID_PITCH_INFLUENCE 50
-#define PID_ROLL_INFLUENCE 50
+#define PID_PITCH_INFLUENCE 20
+#define PID_ROLL_INFLUENCE 20
 #define PID_YAW_INFLUENCE 20
 
 
@@ -103,9 +103,15 @@ uint8_t fifoBuffer[64];                // fifo buffer
 Quaternion q;                          // quaternion for mpu output
 VectorFloat gravity;                   // gravity vector for ypr
 float ypr[3] = {0.0f,0.0f,0.0f};       // yaw pitch roll values
+float yprLast[3] = {0.0f, 0.0f, 0.0f};
 
 volatile bool mpuInterrupt = false;    //interrupt flag
 
+/* Interrupt lock
+ *
+ */
+ 
+boolean interruptLock = false;
 
 /*  RC variables
  *
@@ -197,6 +203,7 @@ void loop(){
 
 void computePID(){
 
+  acquireLock();
   roundInput();
   
   ch2 = map(ch2, RC_LOW_CH2, RC_HIGH_CH2, PITCH_MIN, PITCH_MAX);
@@ -214,10 +221,20 @@ void computePID(){
   ypr[0] = ypr[0] * 180/M_PI;
   ypr[1] = ypr[1] * 180/M_PI;
   ypr[2] = ypr[2] * 180/M_PI;
- 
+  
+  if(abs(ypr[0]-yprLast[0])>30) ypr[0] = yprLast[0];
+  if(abs(ypr[1]-yprLast[1])>30) ypr[1] = yprLast[1];
+  if(abs(ypr[2]-yprLast[2])>30) ypr[2] = yprLast[2];
+  
+  yprLast[0] = ypr[0];
+  yprLast[1] = ypr[1];
+  yprLast[2] = ypr[2];
+
   pitchReg.Compute();
   rollReg.Compute();
   yawReg.Compute();
+  
+  releaseLock();
 
 }
 
@@ -233,7 +250,7 @@ void getYPR(){
     mpuIntStatus = mpu.getIntStatus();
     fifoCount = mpu.getFIFOCount();
     
-    if((mpuIntStatus & 0x10) || fifoCount == 1024){ 
+    if((mpuIntStatus & 0x10) || fifoCount >= 1024){ 
       
       mpu.resetFIFO(); 
     
@@ -290,6 +307,8 @@ void calculateVelocities(){
   
   vc = (abs((-100+bal_ac)/100))*v_ac;
   vd = (abs((-100+bal_bd)/100))*v_bd;
+  
+  Serial.println(bal_bd);
   
   if(velocity < ESC_TAKEOFF_OFFSET){
   
@@ -389,28 +408,36 @@ void initRegulators(){
 }
 
 void rcInterrupt1(){
-   ch1 = micros() - rcLastChange1;
+   if(!interruptLock) ch1 = micros() - rcLastChange1;
    rcLastChange1 = micros(); 
 }
 
 void rcInterrupt2(){
-  ch2 = micros() - rcLastChange2;
+  if(!interruptLock) ch2 = micros() - rcLastChange2;
   rcLastChange2 = micros();
 }
 
 void rcInterrupt3(){
-  ch3 = micros() - rcLastChange3;
+  if(!interruptLock) ch3 = micros() - rcLastChange3;
   rcLastChange3 = micros();
 }
 
 void rcInterrupt4(){
-  ch4 = micros() - rcLastChange4;
+  if(!interruptLock) ch4 = micros() - rcLastChange4;
   rcLastChange4 = micros();
 }
 
 void rcInterrupt5(){
-  ch5 = micros() - rcLastChange5;
+  if(!interruptLock) ch5 = micros() - rcLastChange5;
   rcLastChange5 = micros();
+}
+
+void acquireLock(){
+  interruptLock = true; 
+}
+
+void releaseLock(){
+  interruptLock = false;
 }
 
 #endif
