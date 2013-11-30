@@ -67,3 +67,7 @@ Note:
 The MPU-6050 board currently is the only supported gyro/accelerometer hardware and can only be connected in one specific 
 way, due to the requirements of I2C and the fixed position of the Arduino's external interrupt pin.
 
+License
+=======
+
+This project is licensed under the [GNU General Public License v3](http://www.gnu.org/licenses/gpl.html).
