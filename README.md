@@ -71,3 +71,5 @@ License
 =======
 
 This project is licensed under the [GNU General Public License v3](http://www.gnu.org/licenses/gpl.html).
+
+Note: The libraries used in this project might not be licensed under GPLv3. I've made sure that the usage of all libraries as a part of this project, my modifications and the redistribution of the modified and unmodified libraries are permitted by the respective licenses, but the permissions and restrictions of the GPLv3 might not apply, especially in regard to relicensing. 
