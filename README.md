@@ -51,7 +51,9 @@ Without their contributions to the open source community I couldn't have done th
 
 Modifying the sketch
 ====================
-
+***
+*Note:* If you have questions about the code or the compatability of the code and certain hardware, you've spotted a bug or need help with your project, please open a new github issue rather than sending me an e-mail. That way, I don't have to answer questions twice and you'll get quicker answers. Thank you.
+***
 As I mentioned earlier, the sketch relies on certain hardware, but should work with all similar hardware aswell.
 Fundemtal paramters of the used hardware, like the pin it's connected to, or minimum/maximum values of the ESCs are ``#define``'d
 at the top of the sketch and can easily be changed to whatever value you prefer.
@@ -70,6 +72,6 @@ way, due to the requirements of I2C and the fixed position of the Arduino's exte
 License
 =======
 
-This project is licensed under the [GNU General Public License v3](http://www.gnu.org/licenses/gpl.html).
+This project is licensed under the MIT license (see the included license file for more information).
 
-Note: The libraries used in this project might not be licensed under GPLv3. I've made sure that the usage of all libraries as a part of this project, my modifications and the redistribution of the modified and unmodified libraries are permitted by the respective licenses, but the permissions and restrictions of the GPLv3 might not apply, especially in regard to relicensing. 
+Note: The libraries used in this project might not be licensed under the MIT license. I've made sure that the usage of all libraries as a part of this project, my modifications and the redistribution of the modified and unmodified libraries are permitted by the respective licenses, but the permissions of the MIT license might not apply, especially in regard to relicensing. 
