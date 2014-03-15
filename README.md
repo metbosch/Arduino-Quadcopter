@@ -72,6 +72,6 @@ way, due to the requirements of I2C and the fixed position of the Arduino's exte
 License
 =======
 
-This project is licensed under the MIT license (see the included license file for more information).
+This project is licensed under CC BY-NC-SA, see LICENCE file for more info.
 
-Note: The libraries used in this project might not be licensed under the MIT license. I've made sure that the usage of all libraries as a part of this project, my modifications and the redistribution of the modified and unmodified libraries are permitted by the respective licenses, but the permissions of the MIT license might not apply, especially in regard to relicensing. 
+Note: The libraries used in this project have their own licence. The usage of all libraries as a part of this project, modifications and redistribution of the modified and unmodified libraries are permitted by the respective licenses.
