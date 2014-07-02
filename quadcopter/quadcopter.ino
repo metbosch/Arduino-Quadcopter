@@ -54,6 +54,8 @@
 #define RC_ROUNDING_BASE 50
 #define RC_TIMEOUT 200000
 #define RC_ERROR_BOUND 50
+#define RC_MIN_CHANGE_MODE 1250
+#define RC_MAX_CHANGE_MODE 1850
 
 
 // PID configuration
@@ -85,6 +87,14 @@
 #define YPR_SAMPLES_MEDIAN 1
 #define YPR_MAX_IGNORE_ERRORS 3
 #define YPR_MAX_CHANGE 0.28
+
+
+// Quadcopter modes
+#define START_MODE 0                   // mode -> not initialized
+#define INIT_MODE  1                   // mode -> initialized, no flying started
+#define FLY_MODE   2                   // mode -> flying
+#define LAND_MODE  3                   // mode -> RC error, slowly decrease ESCs power
+#define STOP_MODE  4                   // mode -> emergency stop, ESCs setted to ESC_OFF
 
 
 // MPU variables
@@ -132,34 +142,57 @@ RunningMedian pitchMedian = RunningMedian(YPR_NUMBER_SAMPLES);
 RunningMedian rollMedian = RunningMedian(YPR_NUMBER_SAMPLES);
 
 
+// Quadcopter status
+int mode = START_MODE;                  
 
-// Setup function
+
+// SETUP function
 void setup(){
   
-  initRC();                            // Self explaining
+  initRC();
   initMPU();
   initESCs();
   initBalancing();
   initRegulators();
+  mode = INIT_MODE;                   // Change mode
   
   #ifdef DEBUG                        // Device tests go here
     Serial.begin(9600);               // Serial only necessary if in DEBUG mode
     Serial.flush();
+    Serial.println("END OF SETUP FUNCTION");
   #endif
 }
 
-/* loop function
- *
- */
-
+// LOOP function
 void loop(){
-  
-  while(!mpuInterrupt && fifoCount < packetSize){
-     
+  switch(mode) {
+    case START_MODE:
+      setup();
+      break;
+    case INIT_MODE:
+      getRC();
+      break;
+    case FLY_MODE:
+      flyingMode();
+      break;
+    case LAND_MODE:
+      landingMode();
+      break;
+    case STOP_MODE:
+      stopMode();
+      break;
+    default:
+      mode = START_MODE;
+      break;
+  }  
+}
+
+// Performs the loop acctions for the flying mode(2)
+void flyingMode() {
+  while(!mpuInterrupt && fifoCount < packetSize){     
     /* Do nothing while MPU is not working
      * This should be a VERY short period
-     */
-      
+     */      
   }
   
   getRC();
@@ -167,12 +200,67 @@ void loop(){
   computePID();
   calculateVelocities();
   updateMotors();
-  
 }
 
-/**
-  * Read new values from reciver
-  */
+// Performs the loop acctions for the landing mode(3)
+void landingMode() {
+  mode = INIT_MODE;
+}
+
+// Performs the loop acctions for the landing mode(4)
+void stopMode() {
+  va = ESC_OFF;
+  vb = ESC_OFF;
+  vc = ESC_OFF;
+  vd = ESC_OFF;
+  updateMotors();                          // Stop motors
+  
+  delay(20);
+  mode = START_MODE;                       // Restart quadcopter
+}
+
+
+// Checks two times if RC is in start fly position. If it's, changes the mode
+void setFlyMode() {
+  delay(10);
+  ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
+  ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
+  ch3 = pulseIn(RC_3, HIGH, RC_TIMEOUT);
+  ch4 = pulseIn(RC_4, HIGH, RC_TIMEOUT);
+  if (ch1 > RC_MAX_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 < RC_MIN_CHANGE_MODE) {
+    delay(20);
+    ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
+    ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
+    ch3 = pulseIn(RC_3, HIGH, RC_TIMEOUT);
+    ch4 = pulseIn(RC_4, HIGH, RC_TIMEOUT);
+    if (ch1 > RC_MAX_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 < RC_MIN_CHANGE_MODE) {
+      mode = FLY_MODE;
+    }
+  }
+}
+
+
+// Checks two times if RC is in stop position. If it's, changes the mode
+void setStopMode() {
+  delay(10);
+  ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
+  ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
+  ch3 = pulseIn(RC_3, HIGH, RC_TIMEOUT);
+  ch4 = pulseIn(RC_4, HIGH, RC_TIMEOUT);
+  if (ch1 < RC_MIN_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 > RC_MAX_CHANGE_MODE) {
+    delay(20);
+    ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
+    ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
+    ch3 = pulseIn(RC_3, HIGH, RC_TIMEOUT);
+    ch4 = pulseIn(RC_4, HIGH, RC_TIMEOUT);
+    if (ch1 < RC_MIN_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 > RC_MAX_CHANGE_MODE) {
+      mode = STOP_MODE;
+    }
+  }
+}
+
+
+// Read new values from reciver
 void getRC() {
   ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
   ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
@@ -188,6 +276,12 @@ void getRC() {
     //setErrorMode();
   }
   
+  if (mode != FLY_MODE && ch1 > RC_MAX_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 < RC_MIN_CHANGE_MODE) {
+    setFlyMode();
+  }
+  else if (ch1 < RC_MIN_CHANGE_MODE && ch2 < RC_MIN_CHANGE_MODE && ch3 < RC_MIN_CHANGE_MODE && ch4 > RC_MAX_CHANGE_MODE) {
+    setStopMode();
+  }
 }
 
 
@@ -234,7 +328,6 @@ void computePID(){
  *  gets data from MPU and
  *  computes pitch, roll, yaw on the MPU's DMP
  */
-
 void getYPR(){
   
     mpuInterrupt = false;
@@ -379,7 +472,7 @@ void calculateVelocities(){
   
 }
 
-void updateMotors(){
+void updateMotors() {
 
   a.write(va);
   c.write(vc);
