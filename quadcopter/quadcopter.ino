@@ -9,14 +9,16 @@
 #include <PID_v1.h>
 #include <PinChangeInt.h>
 #include <PinChangeIntConfig.h>
+#include <RunningMedian.h>
 
+//#define DEBUG_BAL
+//#define DEBUG_RC
+//#define DEBUG_YPR
+#define DEBUG_MOTORS
 #define DEBUG
 
 
-/*  Arduino Pin configuration
- *  
- */
-
+// Arduino Pin configuration
 #define ESC_A 9
 #define ESC_B 6
 #define ESC_C 5
@@ -24,58 +26,51 @@
 
 #define RC_1 13
 #define RC_2 12 
-#define RC_3 11
-#define RC_4 10
-#define RC_5 8
-#define RC_PWR A0
+#define RC_3 8
+#define RC_4 7
+#define RC_5 4
+#define RC_PWR 10
 
 
-/* ESC configuration
- *
- */
-
+// ESC configuration
 #define ESC_MIN 22
 #define ESC_MAX 115
+#define ESC_OFF 0
 #define ESC_TAKEOFF_OFFSET 30
 #define ESC_ARM_DELAY 5000
 
-/* RC configuration
- * 
- */
 
-#define RC_HIGH_CH1 1000
-#define RC_LOW_CH1 2000
-#define RC_HIGH_CH2 1000
-#define RC_LOW_CH2 2000
-#define RC_HIGH_CH3 1000
-#define RC_LOW_CH3 2000
-#define RC_HIGH_CH4 1000
-#define RC_LOW_CH4 2000
-#define RC_HIGH_CH5 1000
-#define RC_LOW_CH5 2000
+// RC configuration
+#define RC_HIGH_CH1 2000
+#define RC_LOW_CH1 1000
+#define RC_HIGH_CH2 2000
+#define RC_LOW_CH2 1000
+#define RC_HIGH_CH3 2000
+#define RC_LOW_CH3 1000
+#define RC_HIGH_CH4 2000
+#define RC_LOW_CH4 1000
+#define RC_HIGH_CH5 2000
+#define RC_LOW_CH5 1000
 #define RC_ROUNDING_BASE 50
-
-/*  PID configuration
- *  
- */
-
-#define PITCH_P_VAL 0.5
-#define PITCH_I_VAL 0
-#define PITCH_D_VAL 1
-
-#define ROLL_P_VAL 2
-#define ROLL_I_VAL 5
-#define ROLL_D_VAL 1
-
-#define YAW_P_VAL 2
-#define YAW_I_VAL 5
-#define YAW_D_VAL 1
+#define RC_TIMEOUT 200000
+#define RC_ERROR_BOUND 50
 
 
-/* Flight parameters
- *
- */
+// PID configuration
+#define PITCH_P_VAL 1
+#define PITCH_I_VAL 0.0
+#define PITCH_D_VAL 0.5
 
+#define ROLL_P_VAL 1
+#define ROLL_I_VAL 0.0
+#define ROLL_D_VAL 0.5
+
+#define YAW_P_VAL 0.5
+#define YAW_I_VAL 0
+#define YAW_D_VAL 0.5
+
+
+// Flight parameters
 #define PITCH_MIN -30
 #define PITCH_MAX 30
 #define ROLL_MIN -30
@@ -85,14 +80,15 @@
 #define PID_PITCH_INFLUENCE 20
 #define PID_ROLL_INFLUENCE 20
 #define PID_YAW_INFLUENCE 20
+#define YPR_ROUNDING_BASE 0.04
+#define YPR_NUMBER_SAMPLES 1
+#define YPR_SAMPLES_MEDIAN 1
+#define YPR_MAX_IGNORE_ERRORS 3
+#define YPR_MAX_CHANGE 0.28
 
 
-/*  MPU variables
- *
- */
-
+// MPU variables
 MPU6050 mpu;                           // mpu interface object
-
 
 uint8_t mpuIntStatus;                  // mpu statusbyte
 uint8_t devStatus;                     // device status    
@@ -104,60 +100,40 @@ Quaternion q;                          // quaternion for mpu output
 VectorFloat gravity;                   // gravity vector for ypr
 float ypr[3] = {0.0f,0.0f,0.0f};       // yaw pitch roll values
 float yprLast[3] = {0.0f, 0.0f, 0.0f};
+int yprErrorCount[3] = {0, 0, 0};
 
 volatile bool mpuInterrupt = false;    //interrupt flag
 
-/* Interrupt lock
- *
- */
- 
+
+// Interrupt lock
 boolean interruptLock = false;
 
-/*  RC variables
- *
- */
-
+// RC variables
 float ch1, ch2, ch3, ch4, ch5;         // RC channel inputs
+unsigned int rc_errors = 0;
 
-unsigned long rcLastChange1 = micros();
-unsigned long rcLastChange2 = micros();
-unsigned long rcLastChange3 = micros();
-unsigned long rcLastChange4 = micros();
-unsigned long rcLastChange5 = micros();
-
-/*  Motor controll variables
- *
- */
-
+// Motor controll variables
 int velocity;                          // global velocity
-
 float bal_ac, bal_bd;                 // motor balances can vary between -100 & 100
 float bal_axes;                       // throttle balance between axes -100:ac , +100:bd
-
 int va, vb, vc, vd;                    //velocities
 int v_ac, v_bd;                        // velocity of axes
-
 Servo a,b,c,d;
 
-/*  PID variables
- *
- */
-
+// PID variables
+PID yawReg(&ypr[0], &bal_axes, &ch4, YAW_P_VAL, YAW_I_VAL, YAW_D_VAL, DIRECT);
 PID pitchReg(&ypr[1], &bal_bd, &ch2, PITCH_P_VAL, PITCH_I_VAL, PITCH_D_VAL, REVERSE);
 PID rollReg(&ypr[2], &bal_ac, &ch1, ROLL_P_VAL, ROLL_I_VAL, ROLL_D_VAL, REVERSE);
-PID yawReg(&ypr[0], &bal_axes, &ch4, YAW_P_VAL, YAW_I_VAL, YAW_D_VAL, DIRECT);
 
-
-/*  Filter variables
- *
- */
- 
+// Filter variables
 float ch1Last, ch2Last, ch4Last, velocityLast;
+RunningMedian yawMedian = RunningMedian(YPR_NUMBER_SAMPLES);
+RunningMedian pitchMedian = RunningMedian(YPR_NUMBER_SAMPLES);
+RunningMedian rollMedian = RunningMedian(YPR_NUMBER_SAMPLES);
 
-/*  Setup function
- *
- */
 
+
+// Setup function
 void setup(){
   
   initRC();                            // Self explaining
@@ -167,10 +143,8 @@ void setup(){
   initRegulators();
   
   #ifdef DEBUG                        // Device tests go here
-  
-  Serial.begin(9600);                 // Serial only necessary if in DEBUG mode
-  Serial.flush();
-  
+    Serial.begin(9600);               // Serial only necessary if in DEBUG mode
+    Serial.flush();
   #endif
 }
 
@@ -188,12 +162,34 @@ void loop(){
       
   }
   
+  getRC();
   getYPR();                          
   computePID();
   calculateVelocities();
   updateMotors();
   
 }
+
+/**
+  * Read new values from reciver
+  */
+void getRC() {
+  ch1 = pulseIn(RC_1, HIGH, RC_TIMEOUT);
+  ch2 = pulseIn(RC_2, HIGH, RC_TIMEOUT);
+  ch3 = pulseIn(RC_3, HIGH, RC_TIMEOUT);
+  ch4 = pulseIn(RC_4, HIGH, RC_TIMEOUT);
+  ch5 = pulseIn(RC_5, HIGH, RC_TIMEOUT);
+  rc_errors += (ch1 == 0 && ch2 == 0 && ch3 == 0 && ch4 == 0 && ch5 == 0) ? 1 : -rc_errors;
+  
+  if (rc_errors > RC_ERROR_BOUND) {
+    #ifdef DEBUG_RC
+      Serial.println("getRC\tIn Error Mode");
+    #endif
+    //setErrorMode();
+  }
+  
+}
+
 
 /*  computePID function
  *
@@ -202,8 +198,6 @@ void loop(){
  */
 
 void computePID(){
-
-  acquireLock();
   
   ch1 = floor(ch1/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
   ch2 = floor(ch2/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
@@ -225,19 +219,13 @@ void computePID(){
   ypr[1] = ypr[1] * 180/M_PI;
   ypr[2] = ypr[2] * 180/M_PI;
   
-  if(abs(ypr[0]-yprLast[0])>30) ypr[0] = yprLast[0];
-  if(abs(ypr[1]-yprLast[1])>30) ypr[1] = yprLast[1];
-  if(abs(ypr[2]-yprLast[2])>30) ypr[2] = yprLast[2];
+#ifdef DEBUG_RC
+  printRC();
+#endif
   
-  yprLast[0] = ypr[0];
-  yprLast[1] = ypr[1];
-  yprLast[2] = ypr[2];
-
-  pitchReg.Compute();
   rollReg.Compute();
+  pitchReg.Compute();
   yawReg.Compute();
-  
-  releaseLock();
 
 }
 
@@ -252,26 +240,102 @@ void getYPR(){
     mpuInterrupt = false;
     mpuIntStatus = mpu.getIntStatus();
     fifoCount = mpu.getFIFOCount();
+    int i;
     
-    if((mpuIntStatus & 0x10) || fifoCount >= 1024){ 
+    if(mpuIntStatus & 0x02){
+    
+      while (fifoCount < packetSize * YPR_NUMBER_SAMPLES) fifoCount = mpu.getFIFOCount();
       
-      mpu.resetFIFO(); 
-    
-    }else if(mpuIntStatus & 0x02){
-    
-      while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
+      yawMedian.clear();
+      pitchMedian.clear();
+      rollMedian.clear();
   
-      mpu.getFIFOBytes(fifoBuffer, packetSize);
-      
-      fifoCount -= packetSize;
+      for (i = 0; i < YPR_NUMBER_SAMPLES; ++i) {
+        mpu.getFIFOBytes(fifoBuffer, packetSize);      
+        fifoCount -= packetSize;    
+        mpu.dmpGetQuaternion(&q, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &q);
+        float tmp_ypr[3];
+        mpu.dmpGetYawPitchRoll(tmp_ypr, &q, &gravity);
+        yawMedian.add(tmp_ypr[0]);
+        pitchMedian.add(tmp_ypr[1]);
+        rollMedian.add(tmp_ypr[2]);
+      }
     
-      mpu.dmpGetQuaternion(&q, fifoBuffer);
-      mpu.dmpGetGravity(&gravity, &q);
-      mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-    
+      ypr[0] = yawMedian.getAverage(YPR_SAMPLES_MEDIAN);
+      ypr[0] = floor(ypr[0]/YPR_ROUNDING_BASE)*YPR_ROUNDING_BASE;
+      ypr[1] = pitchMedian.getAverage(YPR_SAMPLES_MEDIAN);
+      ypr[1] = floor(ypr[1]/YPR_ROUNDING_BASE)*YPR_ROUNDING_BASE;
+      ypr[2] = rollMedian.getAverage(YPR_SAMPLES_MEDIAN);
+      ypr[2] = floor(ypr[2]/YPR_ROUNDING_BASE)*YPR_ROUNDING_BASE;
     }
-
+    
+    if((mpuIntStatus & 0x10) || fifoCount > 1024){ 
+      mpu.resetFIFO();
+    }
+    
+    if ((ypr[0] > 1.5 || ypr[0] < -1.5 || abs(ypr[0] - yprLast[0]) > YPR_MAX_CHANGE) && yprErrorCount[0] < YPR_MAX_IGNORE_ERRORS) {
+      ypr[0] = 0.0;
+      ++yprErrorCount[0];
+    } else {
+      float diff = ypr[0] - yprLast[0];
+      yprLast[0] = ypr[0];
+      ypr[0] = diff;
+      yprErrorCount[0] = 0;
+    }
+    
+    if ((ypr[1] > 1.5 || ypr[1] < -1.5 || abs(ypr[1] - yprLast[1]) > YPR_MAX_CHANGE) && yprErrorCount[1] < YPR_MAX_IGNORE_ERRORS) {
+      ypr[1] = yprLast[1];
+      ++yprErrorCount[1];
+    } else {
+      yprLast[1] = ypr[1];
+      yprErrorCount[1] = 0;
+    }
+    
+    if ((ypr[2] > 1.5 || ypr[2] < -1.5 || abs(ypr[2] - yprLast[2]) > YPR_MAX_CHANGE) && yprErrorCount[2] < YPR_MAX_IGNORE_ERRORS) {
+      ypr[2] = yprLast[2];
+      ++yprErrorCount[2];
+    } else {
+      yprLast[2] = ypr[2];
+      yprErrorCount[2] = 0;
+    }
 }
+
+void printYPR() {
+  Serial.print("YPR\tyaw ");
+  Serial.print(ypr[0]);
+  Serial.print("\tpitch ");
+  Serial.print(ypr[1]);
+  Serial.print("\troll ");
+  Serial.println(ypr[2]);
+}
+
+
+void printRC() {
+  Serial.print("getRC\tch1=");
+    Serial.print(ch1);
+    Serial.print("\tch2=");
+    Serial.print(ch2);
+    Serial.print("\tch3=");
+    Serial.println(ch3);
+    Serial.print("getRC\tch4=");
+    Serial.print(ch4);
+    Serial.print("\tch5=");
+    Serial.println(ch5);
+    Serial.print("getRC\trc_errors=");
+    Serial.println(rc_errors);
+}
+
+void printBals() {
+  Serial.print("BALS\taxes ");
+  Serial.print(bal_axes);
+  Serial.print("\tb-d ");
+  Serial.print(bal_bd);
+  Serial.print("\ta-c ");
+  Serial.println(bal_ac);
+}
+
+
 
 /*  calculateVelocities function
  *  
@@ -280,13 +344,16 @@ void getYPR(){
  */
 
 void calculateVelocities(){
-
-  acquireLock();
+  
+#ifdef DEBUG_YPR
+  printYPR();
+#endif
+#ifdef DEBUG_BAL
+  printBals();
+#endif
 
   ch3 = floor(ch3/RC_ROUNDING_BASE)*RC_ROUNDING_BASE;
   velocity = map(ch3, RC_LOW_CH3, RC_HIGH_CH3, ESC_MIN, ESC_MAX);
-  
-  releaseLock();
 
   if((velocity < ESC_MIN) || (velocity > ESC_MAX)) velocity = velocityLast;
   
@@ -300,8 +367,6 @@ void calculateVelocities(){
   
   vc = (abs((-100+bal_ac)/100))*v_ac;
   vd = (abs((-100+bal_bd)/100))*v_bd;
-  
-  Serial.println(bal_bd);
   
   if(velocity < ESC_TAKEOFF_OFFSET){
   
@@ -321,6 +386,16 @@ void updateMotors(){
   b.write(vb);
   d.write(vd);
 
+  #ifdef DEBUG_MOTORS
+    Serial.print("MOTORS\tva=");
+    Serial.print(va);
+    Serial.print("\tvb=");
+    Serial.print(vb);
+    Serial.print("\tvc=");
+    Serial.print(vc);
+    Serial.print("\tvd=");
+    Serial.println(vd);
+  #endif
 }
 
 void arm(){
@@ -339,16 +414,15 @@ void dmpDataReady() {
 }
 
 void initRC(){
+  pinMode(RC_1, INPUT);
+  pinMode(RC_2, INPUT);
+  pinMode(RC_3, INPUT);
+  pinMode(RC_4, INPUT);
+  pinMode(RC_5, INPUT);
+  
   pinMode(RC_PWR, OUTPUT);
   digitalWrite(RC_PWR, HIGH);
-  
-  // FIVE FUCKING INTERRUPTS !!!
-  PCintPort::attachInterrupt(RC_1, rcInterrupt1, CHANGE);
-  PCintPort::attachInterrupt(RC_2, rcInterrupt2, CHANGE);
-  PCintPort::attachInterrupt(RC_3, rcInterrupt3, CHANGE);
-  PCintPort::attachInterrupt(RC_4, rcInterrupt4, CHANGE);
-  PCintPort::attachInterrupt(RC_5, rcInterrupt5, CHANGE);
-  
+  rc_errors = 0;
 }
 
 void initMPU(){
@@ -398,39 +472,6 @@ void initRegulators(){
   yawReg.SetMode(AUTOMATIC);
   yawReg.SetOutputLimits(-PID_YAW_INFLUENCE, PID_YAW_INFLUENCE);
 
-}
-
-void rcInterrupt1(){
-   if(!interruptLock) ch1 = micros() - rcLastChange1;
-   rcLastChange1 = micros(); 
-}
-
-void rcInterrupt2(){
-  if(!interruptLock) ch2 = micros() - rcLastChange2;
-  rcLastChange2 = micros();
-}
-
-void rcInterrupt3(){
-  if(!interruptLock) ch3 = micros() - rcLastChange3;
-  rcLastChange3 = micros();
-}
-
-void rcInterrupt4(){
-  if(!interruptLock) ch4 = micros() - rcLastChange4;
-  rcLastChange4 = micros();
-}
-
-void rcInterrupt5(){
-  if(!interruptLock) ch5 = micros() - rcLastChange5;
-  rcLastChange5 = micros();
-}
-
-void acquireLock(){
-  interruptLock = true; 
-}
-
-void releaseLock(){
-  interruptLock = false;
 }
 
 #endif
