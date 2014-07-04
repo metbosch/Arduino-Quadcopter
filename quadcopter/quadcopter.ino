@@ -335,7 +335,15 @@ void getYPR(){
     fifoCount = mpu.getFIFOCount();
     int i;
     
-    if(mpuIntStatus & 0x02){
+    if((mpuIntStatus & 0x10) || fifoCount > 1024){ 
+      mpu.resetFIFO();
+      ypr[0] = yprLast[0];
+      ypr[1] = yprLast[1];
+      ypr[2] = yprLast[2];
+      Serial.print("1");
+    }
+    else if (mpuIntStatus & 0x02){
+      Serial.print("2");
     
       while (fifoCount < packetSize * YPR_NUMBER_SAMPLES) fifoCount = mpu.getFIFOCount();
       
@@ -362,9 +370,11 @@ void getYPR(){
       ypr[2] = rollMedian.getAverage(YPR_SAMPLES_MEDIAN);
       ypr[2] = floor(ypr[2]/YPR_ROUNDING_BASE)*YPR_ROUNDING_BASE;
     }
-    
-    if((mpuIntStatus & 0x10) || fifoCount > 1024){ 
-      mpu.resetFIFO();
+    else {
+      Serial.print("3");
+      ypr[0] = yprLast[0];
+      ypr[1] = yprLast[1];
+      ypr[2] = yprLast[2];
     }
     
     if ((ypr[0] > 1.5 || ypr[0] < -1.5 || abs(ypr[0] - yprLast[0]) > YPR_MAX_CHANGE) && yprErrorCount[0] < YPR_MAX_IGNORE_ERRORS) {
