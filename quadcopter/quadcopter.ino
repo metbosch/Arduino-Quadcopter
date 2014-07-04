@@ -13,8 +13,8 @@
 
 //#define DEBUG_BAL
 //#define DEBUG_RC
-//#define DEBUG_YPR
-#define DEBUG_MOTORS
+#define DEBUG_YPR
+//#define DEBUG_MOTORS
 #define DEBUG
 
 
@@ -33,10 +33,10 @@
 
 
 // ESC configuration
-#define ESC_MIN 22
-#define ESC_MAX 115
-#define ESC_OFF 0
-#define ESC_TAKEOFF_OFFSET 30
+#define ESC_MIN 98
+#define ESC_MAX 180
+#define ESC_OFF 90
+#define ESC_TAKEOFF_OFFSET 100
 #define ESC_ARM_DELAY 5000
 
 
@@ -493,10 +493,10 @@ void updateMotors() {
 
 void arm(){
 
-  a.write(ESC_MIN);
-  b.write(ESC_MIN);
-  c.write(ESC_MIN);
-  d.write(ESC_MIN);
+  a.write(ESC_OFF);
+  b.write(ESC_OFF);
+  c.write(ESC_OFF);
+  d.write(ESC_OFF);
   
   delay(ESC_ARM_DELAY);
 
